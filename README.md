@@ -11,5 +11,9 @@ The sensors boards are:
 1 x ESP32 30 pins version
 1 x board 18650-Lithium charger
 1 x solar panel 5V
+1 x regulator Lowdrop 3,3V
+2 x resistors 1K switch pull up
+
+Here prototype.
 
 ![IMG_8351](https://github.com/user-attachments/assets/60a31244-e1a2-4c79-baa5-33fd4c6e503e)
