@@ -17,3 +17,5 @@ The sensors boards are:
 Here prototype.
 
 ![IMG_8351](https://github.com/user-attachments/assets/60a31244-e1a2-4c79-baa5-33fd4c6e503e)
+
+<img width="183" alt="Capture d’écran 2024-12-24 à 21 27 17" src="https://github.com/user-attachments/assets/04fd6b65-55a6-476b-b858-d97a1729d2ee" />
