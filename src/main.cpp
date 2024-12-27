@@ -20,14 +20,16 @@ const char* mqtt_password = "mqtt42";
 WiFiClient espClient;
 PubSubClient client(espClient);
 
-// Pin definitions
-#define SWITCH_LETTER 27
-#define SWITCH_PARCEL 15
-#define VBAT_PIN 33
-#define DHT_PIN 13
-#define DHT_TYPE DHT22
-#define SCL_PIN 22
-#define SDA_PIN 21
+// Pin definitions - attention pour les pins de reveille, elles doivent etre des pins de type RTC
+#define SWITCH_LETTER 27 // pour le capteur magnetic letter
+#define SWITCH_PARCEL 15 // pour le capteur magnetic  parcel
+#define VBAT_PIN 33 // pour la mesure de la tension de la batterie
+#define DHT_PIN 13 // pour le capteur DHT22
+#define DHT_TYPE DHT22 // DHT 22  (AM2302)
+#define SCL_PIN 22  // pour le capteur INA219
+#define SDA_PIN 21 // pour le capteur INA219
+#define PIR_PIN 4 // pour le capteur PIR
+
 
 // INA219 instances
 Adafruit_INA219 ina219_solar(0x40);
@@ -51,6 +53,8 @@ void setup() {
   Serial.begin(115200);
   pinMode(SWITCH_LETTER, INPUT);
   pinMode(SWITCH_PARCEL, INPUT);
+  pinMode(PIR_PIN, INPUT);
+
 
   // Initialize sensors
   if (!ina219_solar.begin()) {
@@ -105,6 +109,9 @@ void publishData() {
   }
   client.loop();
 
+  // Lecture des données du capteur PIR
+  bool pirState = digitalRead(PIR_PIN);
+
   // Read sensor data
   float vbat = analogRead(VBAT_PIN) * (3.3 / 4095.0) * 3.7; // Adjust as per resistor divider
   float temp = dht.readTemperature();
@@ -126,6 +133,7 @@ void publishData() {
   client.publish("mailbox/Icbatterie", String(icbatterie).c_str());
   client.publish("mailbox/ip", ipAddress.c_str());
   client.publish("mailbox/rssi", String(rssi).c_str());
+  client.publish("mailbox/pir", pirState ? "1" : "0");
   Serial.println("Data published to MQTT");
 
 }
@@ -137,7 +145,7 @@ void deepSleepSetup() {
 
   // Configure les GPIO pour le réveil (niveau haut)
   esp_sleep_enable_ext1_wakeup(
-    (1ULL << SWITCH_LETTER) | (1ULL << SWITCH_PARCEL), // GPIO 27 et GPIO 15
+    (1ULL << SWITCH_LETTER) | (1ULL << SWITCH_PARCEL) | (1ULL << PIR_PIN), // GPIO 27 et GPIO 15 ety GPIO 23
     ESP_EXT1_WAKEUP_ANY_HIGH // Réveil si l'un des deux passe à HIGH
   );
 
