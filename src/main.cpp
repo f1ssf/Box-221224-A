@@ -109,8 +109,6 @@ void publishData() {
   }
   client.loop();
 
-  // Lecture des données du capteur PIR
-  bool pirState = digitalRead(PIR_PIN);
 
   // Read sensor data
   float vbat = analogRead(VBAT_PIN) * (3.3 / 4095.0) * 3.7; // Adjust as per resistor divider
@@ -126,6 +124,7 @@ void publishData() {
   // Publish MQTT topics
   client.publish("mailbox/letter", digitalRead(SWITCH_LETTER) ? "1" : "0");
   client.publish("mailbox/parcel", digitalRead(SWITCH_PARCEL) ? "1" : "0");
+  client.publish("mailbox/pir", digitalRead(PIR_PIN) ? "1" : "0");
   client.publish("mailbox/temperature", String(temp).c_str());
   client.publish("mailbox/humidity", String(hum).c_str());
   client.publish("mailbox/vbat", String(vbat).c_str());
@@ -133,7 +132,6 @@ void publishData() {
   client.publish("mailbox/Icbatterie", String(icbatterie).c_str());
   client.publish("mailbox/ip", ipAddress.c_str());
   client.publish("mailbox/rssi", String(rssi).c_str());
-  client.publish("mailbox/pir", pirState ? "1" : "0");
   Serial.println("Data published to MQTT");
 
 }
@@ -141,7 +139,7 @@ void publishData() {
 
 void deepSleepSetup() {
   Serial.println("Setting up deep sleep...");
-  delay(2000);
+  delay(4000);
 
   // Configure les GPIO pour le réveil (niveau haut)
   esp_sleep_enable_ext1_wakeup(
