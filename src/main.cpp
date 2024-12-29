@@ -21,14 +21,15 @@ WiFiClient espClient;
 PubSubClient client(espClient);
 
 // Pin definitions - attention pour les pins de reveille, elles doivent etre des pins de type RTC
-#define SWITCH_LETTER 27 // pour le capteur magnetic letter
-#define SWITCH_PARCEL 15 // pour le capteur magnetic  parcel
+// les pins de reveil sont actives a l'etat haut
+#define SWITCH_LETTER 27 // pour le capteur magnetic letter, switch NF + pullup
+#define SWITCH_PARCEL 15 // pour le capteur magnetic  parcel, switch NF + pullup
 #define VBAT_PIN 33 // pour la mesure de la tension de la batterie
-#define DHT_PIN 13 // pour le capteur DHT22
+#define DHT_PIN 13 // pour le capteur DHT22, voir instance ci dessous
 #define DHT_TYPE DHT22 // DHT 22  (AM2302)
-#define SCL_PIN 22  // pour le capteur INA219
-#define SDA_PIN 21 // pour le capteur INA219
-#define PIR_PIN 4 // pour le capteur PIR
+#define SCL_PIN 22  // pour le capteur INA219, voir instance ci dessous
+#define SDA_PIN 21 // pour le capteur INA219, voir insatnce ci dessous
+#define PIR_PIN 4 // pour le capteur PIR, detection etat haut
 
 
 // INA219 instances
