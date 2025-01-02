@@ -31,7 +31,7 @@ PubSubClient client(espClient);
 #define DHT_TYPE DHT22
 #define PIR_PIN 4
 
-// Capteurs instances
+// Capteurs declaration
 Adafruit_INA219 ina219_solar(0x40);
 Adafruit_INA219 ina219_battery(0x45);
 DHT dht(DHT_PIN, DHT_TYPE);
@@ -122,8 +122,13 @@ void publishToSeparateTopics() {
 
     if (letterState != lastLetterState) {
         lastLetterState = letterState;
-        client.publish("mailbox/letter", letterState ? "1" : "0");
+        if (letterState) {
+            client.publish("mailbox/letter", "1");
+            delay(1000); // Maintenir l'état "1" pendant 1 seconde
+            client.publish("mailbox/letter", "0");
+        }
         Serial.printf("Letter State: %d\n", letterState);
+        
     }
 
     // Parcel sensor logic
@@ -132,7 +137,11 @@ void publishToSeparateTopics() {
 
     if (parcelState != lastParcelState) {
         lastParcelState = parcelState;
-        client.publish("mailbox/parcel", parcelState ? "1" : "0");
+        if (parcelState) {
+            client.publish("mailbox/parcel", "1");
+            delay(1000); // Maintenir l'état "1" pendant 1 seconde
+            client.publish("mailbox/parcel", "0");
+        }
         Serial.printf("Parcel State: %d\n", parcelState);
     }
 

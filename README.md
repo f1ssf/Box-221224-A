@@ -7,3 +7,5 @@ Sensor is configured retrigerable mode, sensibilty min, tempo min
 actualy, small bug, when state pir hardware return 0, mqtt topic stay 1
 
 Update to separate logic sensors
+
+optimisation code
