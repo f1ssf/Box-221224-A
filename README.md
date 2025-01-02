@@ -5,3 +5,5 @@ it is same that the main, but I have added a PIR sensors SR501.
 Sensor is configured retrigerable mode, sensibilty min, tempo min
 
 actualy, small bug, when state pir hardware return 0, mqtt topic stay 1
+
+Update to separate logic sensors
