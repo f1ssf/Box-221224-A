@@ -20,6 +20,7 @@ const char* mqtt_server = "192.168.1.62";
 const char* mqtt_user = "Teleinfomqtt";
 const char* mqtt_password = "mqtt42";
 
+//instance de connexion
 WiFiClient espClient;
 PubSubClient client(espClient);
 
@@ -41,6 +42,7 @@ DHT dht(DHT_PIN, DHT_TYPE);
 #define TIME_TO_SLEEP 600
 RTC_DATA_ATTR int bootCount = 0;
 
+// setup à la premiere execution, et ou reset 
 void setup() {
     Serial.begin(115200);
     pinMode(SWITCH_LETTER, INPUT);
@@ -68,7 +70,7 @@ void setup() {
 }
 
 void loop() {
-    // Rien à faire ici puisque l'ESP32 entrera en deep sleep
+    // boucle infini, Rien à faire ici puisque l'ESP32 entrera en deep sleep
 }
 
 void setupWiFi() {
@@ -102,7 +104,7 @@ void publishToSeparateTopics() {
     }
     client.loop();
 
-    // PIR logic
+    // PIR logic et publication topic
     static bool lastPirState = false;
     bool pirState = digitalRead(PIR_PIN);
 
@@ -110,13 +112,13 @@ void publishToSeparateTopics() {
         lastPirState = pirState;
         if (pirState) {
             client.publish("mailbox/pir", "1");
-            delay(1000); // Maintenir l'état "1" pendant 1 seconde
+            delay(5000); // Maintenir l'état "1" pendant 1 seconde
             client.publish("mailbox/pir", "0");
         }
         Serial.printf("PIR State: %d\n", pirState);
     }
 
-    // Letter sensor logic
+    // Letter sensor logic et publication topic
     static bool lastLetterState = false;
     bool letterState = digitalRead(SWITCH_LETTER);
 
@@ -124,14 +126,14 @@ void publishToSeparateTopics() {
         lastLetterState = letterState;
         if (letterState) {
             client.publish("mailbox/letter", "1");
-            delay(1000); // Maintenir l'état "1" pendant 1 seconde
+            delay(5000); // Maintenir l'état "1" pendant 1 seconde
             client.publish("mailbox/letter", "0");
         }
         Serial.printf("Letter State: %d\n", letterState);
         
     }
 
-    // Parcel sensor logic
+    // Parcel sensor logic et publication topic
     static bool lastParcelState = false;
     bool parcelState = digitalRead(SWITCH_PARCEL);
 
@@ -139,13 +141,13 @@ void publishToSeparateTopics() {
         lastParcelState = parcelState;
         if (parcelState) {
             client.publish("mailbox/parcel", "1");
-            delay(1000); // Maintenir l'état "1" pendant 1 seconde
+            delay(5000); // Maintenir l'état "1" pendant 1 seconde
             client.publish("mailbox/parcel", "0");
         }
         Serial.printf("Parcel State: %d\n", parcelState);
     }
 
-    // Logs des autres capteurs ici (température, humidité, etc.)
+    // Monitoring serie des autres capteurs ici (température, humidité, etc.)
     Serial.println("Publishing other data...");
 
     // Lecture des autres capteurs
@@ -168,7 +170,7 @@ void publishToSeparateTopics() {
     client.publish("mailbox/ip", ipAddress.c_str());
     client.publish("mailbox/rssi", String(rssi).c_str());
 
-    // Logs des publications
+    // Monitoring serie des publications
     Serial.printf("Temp: %.2f, Hum: %.2f, Vbat: %.2f, Icsolaire: %.2f, Icbatterie: %.2f\n",
                   temp, hum, vbat, icsolaire, icbatterie);
     Serial.printf("IP: %s, RSSI: %d\n", ipAddress.c_str(), rssi);
