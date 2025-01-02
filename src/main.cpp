@@ -12,13 +12,13 @@ void publishToSeparateTopics();
 void deepSleepSetup();
 
 // WiFi parameters
-const char* ssid = "Bbox-5D58DA16";
-const char* password = "mirage2000";
+const char* ssid = "login";
+const char* password = "password";
 
 // MQTT parameters
 const char* mqtt_server = "192.168.1.62";
-const char* mqtt_user = "Teleinfomqtt";
-const char* mqtt_password = "mqtt42";
+const char* mqtt_user = "login";
+const char* mqtt_password = "password";
 
 WiFiClient espClient;
 PubSubClient client(espClient);
