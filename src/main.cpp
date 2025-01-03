@@ -1,3 +1,4 @@
+
 #include <Arduino.h>
 #include <WiFi.h>
 #include <PubSubClient.h>
@@ -41,6 +42,8 @@ bool pirTriggered = false;
 bool pirImpulseCompleted = true;
 unsigned long pirLastDetectedTime = 0;
 const unsigned long pirDebounceTime = 2000; // 2 seconds debounce time
+unsigned long lastPublishTime = 0;
+const unsigned long publishInterval = 600000; // 10 minutes
 
 void setupWiFi() {
   delay(10);
@@ -71,11 +74,15 @@ void publishMQTT(const String& topic, const String& payload) {
   if (!client.connected()) {
     reconnectMQTT();
   }
-  client.publish(topic.c_str(), payload.c_str());
-  Serial.print("Published topic: ");
-  Serial.print(topic);
-  Serial.print(" with payload: ");
-  Serial.println(payload);
+  if (client.connected()) {
+    client.publish(topic.c_str(), payload.c_str());
+    Serial.print("Published topic: ");
+    Serial.print(topic);
+    Serial.print(" with payload: ");
+    Serial.println(payload);
+  } else {
+    Serial.println("MQTT publish failed: client not connected");
+  }
 }
 
 void publishAllData(const String& prefix) {
@@ -112,6 +119,8 @@ void publishAllData(const String& prefix) {
   String ipAddress = WiFi.localIP().toString();
   publishMQTT("mailbox/rssi", String(rssi));
   publishMQTT("mailbox/ip", ipAddress);
+
+  Serial.println("Environmental and power data published.");
 }
 
 void setup() {
@@ -133,6 +142,7 @@ void setup() {
   // Setup WiFi and MQTT
   setupWiFi();
   client.setServer(mqtt_server, 1883);
+  lastPublishTime = millis(); // Initialize last publish time
 }
 
 void loop() {
@@ -178,8 +188,8 @@ void loop() {
   }
 
   // Publish environmental and power data every 10 minutes
-  static unsigned long lastPublishTime = 0;
-  if (millis() - lastPublishTime > 600000) {
+  if (millis() - lastPublishTime >= publishInterval) {
+    Serial.println("Publishing periodic environmental and power data...");
     lastPublishTime = millis();
     publishAllData("periodic");
   }
