@@ -1,82 +1,46 @@
-// Code MailBox by Franck le 22/12/24
-// mode sleep, puis reveille sur evenement parcel ou letter + plusblish mqtt
-// publish telemetrie vbat, icsolaire, icbatterie , temp, hum toutes les 10 minutes
 #include <Arduino.h>
 #include <WiFi.h>
 #include <PubSubClient.h>
 #include <Adafruit_Sensor.h>
 #include <Adafruit_INA219.h>
-#include <DHT.h>
+#include "DHT.h"
 
-// WiFi parameters
+// WiFi credentials
 const char* ssid = "Bbox-5D58DA16";
 const char* password = "mirage2000";
 
-// MQTT parameters
+// MQTT credentials
 const char* mqtt_server = "192.168.1.62";
 const char* mqtt_user = "Teleinfomqtt";
 const char* mqtt_password = "mqtt42";
 
+// GPIO definitions
+#define PIN_LETTER 27
+#define PIN_PARCEL 15
+#define PIN_PIR 4
+#define PIN_VBAT 33
+#define DHT_PIN 13
+#define DHT_TYPE DHT22
+
+// INA219 addresses
+Adafruit_INA219 inaSolar(0x40);
+Adafruit_INA219 inaBattery(0x45);
+
+// DHT sensor
+DHT dht(DHT_PIN, DHT_TYPE);
+
+// WiFi and MQTT clients
 WiFiClient espClient;
 PubSubClient client(espClient);
 
-// Pin definitions - attention pour les pins de reveille, elles doivent etre des pins de type RTC
-#define SWITCH_LETTER 27 // pour le capteur magnetic letter
-#define SWITCH_PARCEL 15 // pour le capteur magnetic  parcel
-#define VBAT_PIN 33 // pour la mesure de la tension de la batterie
-#define DHT_PIN 13 // pour le capteur DHT22
-#define DHT_TYPE DHT22 // DHT 22  (AM2302)
-#define SCL_PIN 22  // pour le capteur INA219
-#define SDA_PIN 21 // pour le capteur INA219
-#define PIR_PIN 4 // pour le capteur PIR
-
-
-// INA219 instances
-Adafruit_INA219 ina219_solar(0x40);
-Adafruit_INA219 ina219_battery(0x45);
-
-// DHT sensor instance
-DHT dht(DHT_PIN, DHT_TYPE);
-
-// Deep sleep parameters pour le reveil de l'ESP32
-#define uS_TO_S_FACTOR 1000000ULL
-#define TIME_TO_SLEEP 600 // 10 minutes
-RTC_DATA_ATTR int bootCount = 0;
-
-// Function prototypes
-void setupWiFi();
-void reconnectMQTT();
-void publishData();
-void deepSleepSetup();
-
-void setup() {
-  Serial.begin(115200);
-  pinMode(SWITCH_LETTER, INPUT);
-  pinMode(SWITCH_PARCEL, INPUT);
-  pinMode(PIR_PIN, INPUT);
-
-
-  // Initialize sensors
-  if (!ina219_solar.begin()) {
-    Serial.println("Failed to find INA219 (solar) chip");
-  }
-  if (!ina219_battery.begin()) {
-    Serial.println("Failed to find INA219 (battery) chip");
-  }
-  dht.begin();
-
-  // Setup WiFi and MQTT
-  setupWiFi();
-  client.setServer(mqtt_server, 1883);
-
-  // Publish data and setup deep sleep
-  publishData();
-  deepSleepSetup();
-}
-
-void loop() {
-  // Nothing to do here since ESP32 will enter deep sleep
-}
+// Variables
+bool letterDetected = false;
+bool parcelDetected = false;
+bool pirDetected = false;
+bool pirTriggered = false;
+bool pirImpulseCompleted = true;
+unsigned long pirLastDetectedTime = 0;
+const unsigned long pirDebounceTime = 2000; // 2 seconds debounce time
 
 void setupWiFi() {
   delay(10);
@@ -91,11 +55,11 @@ void setupWiFi() {
 
 void reconnectMQTT() {
   while (!client.connected()) {
-    Serial.print("Attempting MQTT connection...");
+    Serial.println("Connecting to MQTT...");
     if (client.connect("ESP32Client", mqtt_user, mqtt_password)) {
-      Serial.println("connected");
+      Serial.println("Connected to MQTT");
     } else {
-      Serial.print("failed, rc=");
+      Serial.print("Failed, rc=");
       Serial.print(client.state());
       Serial.println(" try again in 5 seconds");
       delay(5000);
@@ -103,55 +67,128 @@ void reconnectMQTT() {
   }
 }
 
-void publishData() {
+void publishMQTT(const String& topic, const String& payload) {
   if (!client.connected()) {
     reconnectMQTT();
   }
-  client.loop();
-
-  // Lecture des données du capteur PIR
-  bool pirState = digitalRead(PIR_PIN);
-
-  // Read sensor data
-  float vbat = analogRead(VBAT_PIN) * (3.3 / 4095.0) * 3.7; // Adjust as per resistor divider
-  float temp = dht.readTemperature();
-  float hum = dht.readHumidity();
-  float icsolaire = ina219_solar.getCurrent_mA();
-  float icbatterie = ina219_battery.getCurrent_mA();
-
-// Get WiFi information
-  String ipAddress = WiFi.localIP().toString();
-  int rssi = WiFi.RSSI();
-
-  // Publish MQTT topics
-  client.publish("mailbox/letter", digitalRead(SWITCH_LETTER) ? "1" : "0");
-  client.publish("mailbox/parcel", digitalRead(SWITCH_PARCEL) ? "1" : "0");
-  client.publish("mailbox/temperature", String(temp).c_str());
-  client.publish("mailbox/humidity", String(hum).c_str());
-  client.publish("mailbox/vbat", String(vbat).c_str());
-  client.publish("mailbox/Icsolaire", String(icsolaire).c_str());
-  client.publish("mailbox/Icbatterie", String(icbatterie).c_str());
-  client.publish("mailbox/ip", ipAddress.c_str());
-  client.publish("mailbox/rssi", String(rssi).c_str());
-  client.publish("mailbox/pir", pirState ? "1" : "0");
-  Serial.println("Data published to MQTT");
-
+  client.publish(topic.c_str(), payload.c_str());
+  Serial.print("Published topic: ");
+  Serial.print(topic);
+  Serial.print(" with payload: ");
+  Serial.println(payload);
 }
 
+void publishAllData(const String& prefix) {
+  // Publish letter, parcel, and PIR events as separate topics
+  if (prefix == "letter") {
+    publishMQTT("mailbox/letter", letterDetected ? "1" : "0");
+  } else if (prefix == "parcel") {
+    publishMQTT("mailbox/parcel", parcelDetected ? "1" : "0");
+  } else if (prefix == "PIR") {
+    publishMQTT("mailbox/PIR", pirTriggered ? "1" : "0");
+  }
 
-void deepSleepSetup() {
-  Serial.println("Setting up deep sleep...");
-  delay(2000);
+  // Publish environmental and power data as separate topics
+  float temp = dht.readTemperature();
+  float hum = dht.readHumidity();
+  if (!isnan(temp)) {
+    publishMQTT("mailbox/temp", String(temp));
+  }
+  if (!isnan(hum)) {
+    publishMQTT("mailbox/hum", String(hum));
+  }
 
-  // Configure les GPIO pour le réveil (niveau haut)
-  esp_sleep_enable_ext1_wakeup(
-    (1ULL << SWITCH_LETTER) | (1ULL << SWITCH_PARCEL) | (1ULL << PIR_PIN), // GPIO 27 et GPIO 15 ety GPIO 23
-    ESP_EXT1_WAKEUP_ANY_HIGH // Réveil si l'un des deux passe à HIGH
-  );
+  float solarCurrent = inaSolar.getCurrent_mA();
+  float batteryCurrent = inaBattery.getCurrent_mA();
+  publishMQTT("mailbox/icsolaire", String(solarCurrent));
+  publishMQTT("mailbox/icbatterie", String(batteryCurrent));
 
-  // Configure le réveil par minuterie
-  esp_sleep_enable_timer_wakeup(TIME_TO_SLEEP * uS_TO_S_FACTOR); // 10 minutes
+  int vbatRaw = analogRead(PIN_VBAT);
+  float vbat = (vbatRaw / 4095.0) * 3.3 * 2; // Voltage divider assumed
+  publishMQTT("mailbox/vbat", String(vbat));
 
-  Serial.println("Going to sleep...");
+  // Publish RSSI and IP address
+  int rssi = WiFi.RSSI();
+  String ipAddress = WiFi.localIP().toString();
+  publishMQTT("mailbox/rssi", String(rssi));
+  publishMQTT("mailbox/ip", ipAddress);
+}
+
+void setup() {
+  // Initialize Serial for debugging
+  Serial.begin(115200);
+
+  // Setup GPIOs
+  pinMode(PIN_LETTER, INPUT);
+  pinMode(PIN_PARCEL, INPUT);
+  pinMode(PIN_PIR, INPUT);
+
+  // Initialize sensors
+  dht.begin();
+  if (!inaSolar.begin() || !inaBattery.begin()) {
+    Serial.println("Failed to initialize INA219 sensors!");
+    while (1);
+  }
+
+  // Setup WiFi and MQTT
+  setupWiFi();
+  client.setServer(mqtt_server, 1883);
+}
+
+void loop() {
+  // Read GPIO states
+  bool newLetterDetected = digitalRead(PIN_LETTER) == HIGH;
+  bool newParcelDetected = digitalRead(PIN_PARCEL) == HIGH;
+  bool newPirDetected = digitalRead(PIN_PIR) == HIGH;
+
+  // Debugging outputs for GPIO states
+  Serial.println("--- GPIO Status ---");
+  Serial.print("PIN_LETTER state: ");
+  Serial.println(newLetterDetected);
+  Serial.print("PIN_PARCEL state: ");
+  Serial.println(newParcelDetected);
+  Serial.print("PIN_PIR state: ");
+  Serial.println(newPirDetected);
+
+  if (newLetterDetected != letterDetected) {
+    letterDetected = newLetterDetected;
+    Serial.println("Letter state changed!");
+    publishAllData("letter");
+  }
+
+  if (newParcelDetected != parcelDetected) {
+    parcelDetected = newParcelDetected;
+    Serial.println("Parcel state changed!");
+    publishAllData("parcel");
+  }
+
+  // Handle PIR with debounce and impulse logic
+  if (newPirDetected && pirImpulseCompleted && (millis() - pirLastDetectedTime > pirDebounceTime)) {
+    pirTriggered = true;
+    pirImpulseCompleted = false;
+    pirLastDetectedTime = millis();
+    Serial.println("PIR detected with impulse!");
+    publishAllData("PIR");
+  }
+
+  if (!newPirDetected && pirTriggered) {
+    pirTriggered = false;
+    pirImpulseCompleted = true;
+    Serial.println("PIR reset.");
+  }
+
+  // Publish environmental and power data every 10 minutes
+  static unsigned long lastPublishTime = 0;
+  if (millis() - lastPublishTime > 600000) {
+    lastPublishTime = millis();
+    publishAllData("periodic");
+  }
+
+  // Enter deep sleep if no activity
+  Serial.println("Entering deep sleep...");
+
+  // Configure wakeup using ext1 for multiple GPIOs
+  esp_sleep_enable_ext1_wakeup((1ULL << PIN_LETTER) | (1ULL << PIN_PARCEL) | (1ULL << PIN_PIR), ESP_EXT1_WAKEUP_ANY_HIGH);
+
   esp_deep_sleep_start();
 }
